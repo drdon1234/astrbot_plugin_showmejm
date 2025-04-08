@@ -5,8 +5,8 @@ class JmOptions:
     def __init__(
             self,
             platform: str = 'napcat',
-            http_host: str = 'localhost',
-            http_port: int = 2333,
+            http_host: str = '192.168.5.2',
+            http_port: int = 13000,
             token: str = '',
             batch_size: int = 100,
             pdf_max_pages: int = 200,
@@ -36,8 +36,8 @@ class JmOptions:
     def from_dict(cls, config: dict):
         return cls(
             platform=config.get('platform', 'napcat'),
-            http_host=config.get('http_host', 'localhost'),
-            http_port=config.get('http_port', 2333),
+            http_host=config.get('http_host', '192.168.5.2'),
+            http_port=config.get('http_port', 13000),
             token=config.get('token', ''),
             batch_size=config.get('batch_size', 100),
             pdf_max_pages=config.get('pdf_max_pages', 200),
