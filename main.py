@@ -19,8 +19,8 @@ class ShowMeJM(Star):
         "platform": 'napcat',
         # 消息平台的域名,端口号和token
         # 使用时需在napcat内配置http服务器 host和port对应好
-        'http_host': 'localhost',
-        'http_port': 2333,
+        'http_host': '192.168.5.2',
+        'http_port': 13000,
         # 若消息平台未配置token则留空 否则填写配置的token
         'token': '',
         # 打包成pdf时每批处理的图片数量 每批越小内存占用越小 (仅供参考, 建议按实际调整: 设置为50时峰值占用约1.5G内存, 设置为20时最高占用1G左右)
