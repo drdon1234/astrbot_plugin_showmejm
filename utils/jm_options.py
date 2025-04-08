@@ -13,7 +13,7 @@ class JmOptions:
         group_folder: str = '/',
         auto_find_jm: bool = True,
         prevent_default: bool = True,
-        option: str = 'plugins/astrbot_plugin_showmejm/config.yml',
+        option: str = str(Path(__file__).parent.parent / "config.yml"),
         open_random_search: bool = True,
         group_whitelist: list = None,
         person_whitelist: list = None
