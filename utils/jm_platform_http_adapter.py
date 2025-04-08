@@ -1,7 +1,8 @@
 """
 根据平台适配不同请求体
 """
-from plugins.ShowMeJM.utils.jm_options import JmOptions
+
+from .jm_options import JmOptions
 
 def get_headers(options: JmOptions):
     if options.token == "":
@@ -43,6 +44,7 @@ def get_upload_group_file_request_body(options: JmOptions, group_id, folder_id, 
         }
     else:
         raise Exception("消息平台配置有误, 只能是'napcat', 'llonebot'或'lagrange'")
+    
     headers = get_headers(options)
     return url, payload, headers
 
@@ -72,6 +74,7 @@ def get_upload_private_file_request_body(options: JmOptions, user_id, file, name
         }
     else:
         raise Exception("消息平台配置有误, 只能是'napcat', 'llonebot'或'lagrange'")
+    
     headers = get_headers(options)
     return url, payload, headers
 
@@ -94,6 +97,7 @@ def get_group_root_files_request_body(options: JmOptions, group_id):
         }
     else:
         raise Exception("消息平台配置有误, 只能是'napcat', 'llonebot'或'lagrange'")
+    
     headers = get_headers(options)
     return url, payload, headers
 
@@ -120,5 +124,6 @@ def get_create_group_file_folder_request_body(options: JmOptions, group_id, fold
         }
     else:
         raise Exception("消息平台配置有误, 只能是'napcat', 'llonebot'或'lagrange'")
+    
     headers = get_headers(options)
     return url, payload, headers
