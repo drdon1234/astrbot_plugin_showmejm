@@ -208,7 +208,6 @@ class ShowMeJM(Star):
         search_result += "\n对我说jm jm号进行下载吧~"
         await event.send(event.plain_result(search_result))
 
-    @filter.message()
     async def auto_find_jm(self, event: AstrMessageEvent):
         if not self.options.auto_find_jm:
             return
