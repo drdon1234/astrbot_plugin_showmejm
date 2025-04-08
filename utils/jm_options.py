@@ -5,8 +5,8 @@ class JmOptions:
     def __init__(
         self,
         platform: str = 'napcat',
-        http_host: str = 'localhost',
-        http_port: int = 2333,
+        http_host: str = '192.168.5.2',
+        http_port: int = 13000,
         token: str = '',
         batch_size: int = 100,
         pdf_max_pages: int = 200,
