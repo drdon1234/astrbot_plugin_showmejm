@@ -13,7 +13,7 @@ class JmOptions:
             group_folder: str = '/',
             auto_find_jm: bool = True,
             prevent_default: bool = True,
-            option: str = 'plugins/ShowMeJM/config.yml',
+            option: str = str(Path(__file__).parent.parent / "config.yml"),
             open_random_search: bool = True,
             group_whitelist: list = None,
             person_whitelist: list = None
@@ -44,7 +44,7 @@ class JmOptions:
             group_folder=config.get('group_folder', '/'),
             auto_find_jm=config.get('auto_find_jm', True),
             prevent_default=config.get('prevent_default', True),
-            option=config.get('option', 'plugins/ShowMeJM/config.yml'),
+            option=config.get('option', str(Path(__file__).parent.parent / "config.yml")),
             open_random_search=config.get('open_random_search', True),
             group_whitelist=config.get('group_whitelist', []),
             person_whitelist=config.get('person_whitelist', [])
