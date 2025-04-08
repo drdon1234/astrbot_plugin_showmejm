@@ -35,7 +35,7 @@ class ShowMeJM(Star):
         # 如果成功找到本子是否停止触发其他插件(Ture:若找到本子则后续其他插件不会触发)
         'prevent_default': True,
         # 配置文件所在位置
-        'option': str(Path(__file__).parent / "config.yaml"),
+        'option': str(Path(__file__).parent / "config.yml"),
         # 是否在启动时获取本子总页数(此功能在插件加载时会访问JM搜索页数, 将会提高随机本子指令的搜索速度)
         'open_random_search': True,
         # 白名单 配置个人白名单和群白名单 若为空或不配置则不启用白名单功能
