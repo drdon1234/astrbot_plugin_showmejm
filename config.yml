@@ -4,7 +4,7 @@
 version: '2.0'
 
 dir_rule:
-  base_dir: data/jmDownload # 此处需要修改为你自己本地的路径 原图片和转换后的PDF都会存在这里 例如: D:\下载
+  base_dir: /app/sharedFolder # 此处需要修改为你自己本地的路径 原图片和转换后的PDF都会存在这里 例如: D:\下载
   rule: Bd_Aid_Pindex # 此配置勿动
 
 client:
