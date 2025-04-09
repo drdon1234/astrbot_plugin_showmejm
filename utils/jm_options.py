@@ -1,3 +1,5 @@
+from pathlib import Path
+
 class JmOptions:
     __slots__ = ["platform", "http_host", "http_port", "token", "batch_size", "pdf_max_pages", "group_folder",
                  "auto_find_jm", "prevent_default", "option", "open_random_search", "group_whitelist", 'person_whitelist']
