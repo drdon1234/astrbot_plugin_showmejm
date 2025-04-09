@@ -1,7 +1,7 @@
 # Github Actions 下载脚本配置
 # 除dir_rule下的base_dir需要修改外, 其他配置不知道干嘛的不要修改, 一定要修改请参考此文档↓
 # https://github.com/hect0x7/JMComic-Crawler-Python/blob/master/assets/docs/sources/option_file_syntax.md
-version: '2.0'
+version: '2.4'
 
 dir_rule:
   base_dir: /app/sharedFolder # 此处需要修改为你自己本地的路径 原图片和转换后的PDF都会存在这里 例如: D:\下载
