@@ -93,7 +93,9 @@ def all2PDF(options, input_folder, pdfpath, pdfname):
     # 分段处理逻辑优化
     for chunk_idx, page_start in enumerate(range(0, total_pages, pdf_page_size), 1):
         chunk = image_paths[page_start:page_start + pdf_page_size]
-        temp_pdf = f"plugins/astrbot_plugin_showmejm/temp{pdfname}-{chunk_idx}.pdf"
+        
+        # 将临时文件和最终文件放在同一目录，只是文件名不同
+        temp_pdf = os.path.abspath(os.path.join(pdfpath, f"temp_{pdfname}-{chunk_idx}.pdf"))
         final_pdf = os.path.abspath(os.path.join(pdfpath, f"{pdfname}-{chunk_idx}.pdf"))
 
         try:
@@ -124,7 +126,8 @@ def all2PDF(options, input_folder, pdfpath, pdfname):
                         if hasattr(img, "fp") and img.fp is not None:
                             img.close()
 
-            shutil.move(temp_pdf, final_pdf)
+            # 完成后重命名文件，而不是移动
+            os.rename(temp_pdf, final_pdf)
             pdf_files.append(final_pdf)
             print(f"成功生成第{chunk_idx}个PDF: {final_pdf}")
         except (IOError, OSError) as e:
