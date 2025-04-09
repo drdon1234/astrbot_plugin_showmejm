@@ -12,7 +12,7 @@ from .utils import domain_checker, jm_file_resolver
 from .utils.jm_options import JmOptions
 from .utils.jm_random_search import JmRandomSearch
 
-@register("astrbot_plugin_showmejm", "exneverbur, drdon1234", "jm下载", "2.4")
+@register("astrbot_plugin_showmejm", "exneverbur, drdon1234", "适配 AstrBot 的 JM本子 转 PDF 插件，搜漫画，下漫画，看随机漫画！", "2.4")
 class ShowMeJM(Star):
     init_options = {
         # 你使用的消息平台, 只能为'napcat', 'llonebot', 'lagrange'
