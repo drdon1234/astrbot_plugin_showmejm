@@ -65,6 +65,23 @@ napcat为例:
 
 5.你的群可能需要给bot管理员权限才能进行群文件的上传
 
+## 依赖库安装（重要！）
+
+使用前请先安装以下依赖库：
+- jmcomic
+在您的终端输入以下命令并回车：
+```
+pip install <jmcomic>
+```
+
+## Docker 部署注意事项
+
+如果您是 Docker 部署，请务必为消息平台容器挂载视频缓存文件所在的文件夹，否则消息平台将无法解析文件路径。
+
+示例挂载方式(NapCat)：
+- 对 AstrBot：`/vol3/1000/dockerSharedFolder -> /app/sharedFolder`
+- 对 NapCat：`/vol3/1000/dockerSharedFolder -> /app/sharedFolder`
+
 ## 指令
 
 | 指令                       |                  含义                   |      示例      |
