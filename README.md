@@ -47,21 +47,21 @@ napcat为例:
 
 1.在网络配置中新建, 选择http服务器, 填写你的host和port(注意端口号不要被其他程序占用) 如果langbot和napcat在同一网络环境下host直接填写127.0.0.1或localhost, 配置完可以在浏览器访问一下, 比如127.0.0.1:2333, 如果返回信息里有'NapCat4 Is Running'字样说明运行正常。只要你在napcat配置的url+端口号在langbot所在的网络环境下能正常访问到就ok
 
-![img.png](img/1.png)
+![1](https://github.com/user-attachments/assets/01e371ef-6f93-4c2e-a896-d28aa6ebc097)
 
 2.在本项目的main.py中修改platform、http_host和http_port三个变量即可
 
 若你在消息平台配置了token, 则也需要将同样的token添加在此处的token属性中
 
-![img.png](img/img_3.png)
+![img_3](https://github.com/user-attachments/assets/1dd0a2e9-4f97-49f2-8a81-799a5c4318dc)
 
 3.在本项目的main.py中按需调整打包参数
 
-![img_6.png](img/img_2.png)
+![img_2](https://github.com/user-attachments/assets/025d00cc-35b0-4706-a0dd-8f15c3062676)
 
 4.修改有关下载文件的配置(插件文件夹中的config.yml)中的文件保存路径以及其他配置, 图中框选出来的值要改成你自己本地的存储路径, 下载的图片和解析后的pdf都会存在这里 其他配置不要修改, 一定要修改请参考[此文档](https://github.com/hect0x7/JMComic-Crawler-Python/blob/master/assets/docs/sources/option_file_syntax.md)
 
-![img_3.png](img/2.png)
+![2](https://github.com/user-attachments/assets/244a5474-6692-4b9c-b7c0-3d8de587e52e)
 
 5.你的群可能需要给bot管理员权限才能进行群文件的上传
 
@@ -80,19 +80,20 @@ napcat为例:
 ## 效果
 单文件打包
 
-![单文件上传.png](img/6.png)
+![6](https://github.com/user-attachments/assets/bb140015-f9c1-4c26-945e-d31a90738b24)
 
 分批打包
 
-![img_3.png](img/4.png)
+![4](https://github.com/user-attachments/assets/0dcd8d03-2fe5-4691-99d7-e44fc13de95b)
 
 自动匹配逆天文案
 
-![img_2.png](img/5.png)
+![5](https://github.com/user-attachments/assets/bcb12b2f-fd25-4457-8cd2-35894966fc03)
 
 搜索
 
-![img_1.png](img/7.png)
+![7](https://github.com/user-attachments/assets/50e67b5e-a7db-4017-8de6-2bbd1e614a51)
+
 ## 计划功能
 
 1.下载指定章节
@@ -107,7 +108,7 @@ napcat为例:
 
 欢迎提issue, 提交前请先更新插件版本, 以及查看以往的issue里是否有类似已解决问题。
 
-![img.png](img/img.png)
+![img](https://github.com/user-attachments/assets/5ccf386f-a4ac-45ce-aa50-88d9e14e5155)
 
 ## 其他
 
@@ -155,7 +156,7 @@ py -<你的版本> -m pip install jmcomic –i https://pypi.org/project –U
 
 还有一个llonebot配置示例
 
-![img_1.png](img/img_1.png)
+![img_1](https://github.com/user-attachments/assets/5dc3ba15-ebd8-42b4-a12c-dc8fc238f506)
 
 ## 更新日志
 v2.4
