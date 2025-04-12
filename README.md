@@ -71,7 +71,7 @@ napcat为例:
 - jmcomic
 在您的终端输入以下命令并回车：
 ```
-pip install <jmcomic>
+pip install jmcomic
 ```
 
 ## Docker 部署注意事项
