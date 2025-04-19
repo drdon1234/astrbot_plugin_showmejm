@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 import random
 import jmcomic
-from pathlib import Path
 
 from .utils import domain_checker, jm_file_resolver
 from .utils.jm_options import JmOptions
