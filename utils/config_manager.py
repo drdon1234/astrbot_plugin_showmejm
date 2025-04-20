@@ -2,7 +2,7 @@ import yaml
 import os
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +19,23 @@ DEFAULT_CONFIG = {
     }
 }
 
-def load_config(config: Dict[str, Any] = None) -> Dict[str, Any]:
+def load_config(config: Union[str, Dict[str, Any]] = None) -> Dict[str, Any]:
     """加载配置文件"""
     result = DEFAULT_CONFIG.copy()
     
     if config:
-        # 更新默认配置
-        deep_update(result, config)
+        if isinstance(config, str):
+            # 如果config是字符串，假定它是文件路径
+            try:
+                with open(config, 'r', encoding="utf-8") as stream:
+                    config_data = yaml.safe_load(stream)
+                    if config_data:
+                        deep_update(result, config_data)
+            except Exception as e:
+                logger.error(f"加载配置文件失败: {e}")
+        else:
+            # 如果config已经是字典
+            deep_update(result, config)
     
     # 确保必要的目录存在
     Path(result["search_cache_folder"]).mkdir(exist_ok=True, parents=True)
