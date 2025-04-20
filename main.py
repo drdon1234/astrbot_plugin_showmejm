@@ -1,257 +1,294 @@
-from astrbot.core.star.filter.event_message_type import EventMessageType
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
-
+from .utils.config_manager import load_config
+from .utils.domain_checker import get_usable_domain, update_option_domain, clear_domain
+from .utils.jm_file_resolver import download_and_get_pdf
+from .utils.message_adapter import MessageAdapter
 from pathlib import Path
+import os
 import re
+import asyncio
 import random
-import jmcomic
+import logging
+import json
+from typing import List, Dict, Any
 
-from .utils import domain_checker, jm_file_resolver
-from .utils.jm_options import JmOptions
-from .utils.jm_random_search import JmRandomSearch
+logger = logging.getLogger(__name__)
 
-@register("astrbot_plugin_showmejm", "exneverbur, drdon1234", "适配 AstrBot 的 JM本子 转 PDF 插件，搜漫画，下漫画，看随机漫画！", "2.4")
-class ShowMeJM(Star):
-    init_options = {
-        # 你使用的消息平台, 只能为'napcat', 'llonebot', 'lagrange'
-        "platform": 'napcat',
-        # 消息平台的域名,端口号和token
-        # 使用时需在napcat内配置http服务器 host和port对应好
-        'http_host': '127.0.0.1',
-        'http_port': 2333,
-        # 若消息平台未配置token则留空 否则填写配置的token
-        'token': '',
-        # 打包成pdf时每批处理的图片数量 每批越小内存占用越小 (仅供参考, 建议按实际调整: 设置为50时峰值占用约1.5G内存, 设置为20时最高占用1G左右)
-        'batch_size': 20,
-        # 每个pdf中最多有多少个图片 超过此数量时将会创建新的pdf文件 设置为0则不限制, 所有图片都在一个pdf文件中
-        'pdf_max_pages': 200,
-        # 上传到群文件的哪个目录?默认"/"是传到根目录 如果指定的目录不存在会自动创建文件夹
-        # 'group_folder': 'JM漫画',
-        'group_folder': '/',
-        # 是否开启自动匹配消息中的jm号功能(消息中的所有数字加起来是6~7位数字就触发下载本子) 此功能可能会下载很多不需要的本子占据硬盘, 请谨慎开启
-        'auto_find_jm': True,
-        # 如果成功找到本子是否停止触发其他插件(Ture:若找到本子则后续其他插件不会触发)
-        'prevent_default': True,
-        # 配置文件所在位置
-        'option': str(Path(__file__).parent / "config.yml"),
-        # 是否在启动时获取本子总页数(此功能在插件加载时会访问JM搜索页数, 将会提高随机本子指令的搜索速度)
-        'open_random_search': True,
-        # 白名单 配置个人白名单和群白名单 若为空或不配置则不启用白名单功能
-        # 'person_whitelist': [123456, 654321],
-        # 'group_whitelist': [12345678],
-    }
 
-    def __init__(self, context: Context):
+@register("astrbot_plugin_jmcomic", "test-do_not_download", "适配 AstrBot 的 JMComic 漫画搜索下载器", "1.0")
+class JMComicBot(Star):
+    def __init__(self, context: Context, config: dict):
         super().__init__(context)
-        self.options = JmOptions.from_dict(self.init_options)
-        file_option = jmcomic.create_option_by_file(self.options.option)
-        self.client = file_option.new_jm_client()
-        self.api_client = file_option.new_jm_client(impl='api')
-        self.random_searcher = JmRandomSearch(self.api_client)
-
-    async def initialize(self):
-        if self.options.open_random_search:
-            await self.random_searcher.get_max_page()
+        self.config = load_config(config)
+        self.uploader = MessageAdapter(self.config)
+        self._max_page_cache = {}
 
     @staticmethod
-    def parse_command(message: str) -> list:
-        parts = message.split(' ')  # 分割命令和参数
-        command = parts[0]
-        args = []
-        if len(parts) > 1:
-            args = parts[1:]
-        print("接收指令:", command, "参数：", args)
-        return args
+    def parse_command(message: str) -> List[str]:
+        return [p for p in message.split(' ') if p][1:]
 
-    @filter.command("jm更新域名")
-    async def do_update_domain(self, event: AstrMessageEvent):
-        if not self.verify_whitelist(event):
-            return
-
-        await event.send(event.plain_result("检查中, 请稍后..."))
-        # 自动将可用域名加进配置文件中
-        domains = domain_checker.get_usable_domain(self.options.option)
-        usable_domains = []
-        check_result = "域名连接状态检查完成√\n"
-        for domain, status in domains:
-            check_result += f"{domain}: {status}\n"
-            if status == 'ok':
-                usable_domains.append(domain)
-        await event.send(event.plain_result(check_result))
-
+    @filter.command("搜jm")
+    async def search_comic(self, event: AstrMessageEvent, cleaned_text: str):
         try:
-            domain_checker.update_option_domain(self.options.option, usable_domains)
+            cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+            args = self.parse_command(cleaned_text)
+
+            if not args:
+                await self.jm_helper(event)
+                return
+
+            query = args[0]
+            page = int(args[1]) if len(args) > 1 and args[1].isdigit() else 1
+
+            await event.send(event.plain_result(f"正在搜索关键词: {query}，页码: {page}"))
+
+            from jmcomic import JmOption
+            option = JmOption.from_file(self.config['option_file'])
+            client = option.new_jm_client(impl='api')
+
+            tags = re.sub(r'[，,]+', ' ', query)
+            search_page = client.search_site(search_query=tags, page=page)
+            results = list(search_page.iter_id_title())
+
+            if not results:
+                await event.send(event.plain_result("未找到相关结果"))
+                return
+
+            cache_data = {}
+            for idx, (album_id, title) in enumerate(results, 1):
+                cache_data[str(idx)] = album_id
+
+            search_cache_folder = Path(self.config['search_cache_folder'])
+            search_cache_folder.mkdir(exist_ok=True, parents=True)
+
+            cache_file = search_cache_folder / f"{event.get_sender_id()}.json"
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+            output = f"搜索结果 (第{page}页):\n"
+            output += "=" * 50 + "\n"
+
+            for i, (album_id, title) in enumerate(results, 1):
+                output += f"[{i}] [{album_id}]: {title}\n"
+
+            output += "\n输入 '下载漫画 序号' 或 '下载漫画 ID' 下载对应漫画"
+
+            await event.send(event.plain_result(output))
+
         except Exception as e:
-            await event.send(event.plain_result("修改配置文件时发生问题: " + str(e)))
-            return
-
-        await event.send(event.plain_result(
-            "已将可用域名添加到配置文件中~\n PS:如遇网络原因下载失败, 对我说:'jm清空域名'指令可以将配置文件中的域名清除, 此时我将自动寻找可用域名哦"))
-
-    @filter.command("jm清空域名")
-    async def do_clear_domain(self, event: AstrMessageEvent):
-        if not self.verify_whitelist(event):
-            return
-
-        domain_checker.clear_domain(self.options.option)
-        await event.send(event.plain_result(
-            "已将默认下载域名全部清空, 我将会自行寻找可用域名\n PS:对我说:'jm更新域名'指令可以查看当前可用域名并添加进配置文件中哦"))
+            logger.exception("搜索漫画失败")
+            await event.send(event.plain_result(f"搜索漫画失败：{str(e)}"))
 
     @filter.command("随机jm")
-    async def do_random_download(self, event: AstrMessageEvent):
-        if not self.verify_whitelist(event):
-            return
-
-        if not self.options.open_random_search:
-            await event.send(event.plain_result("随机下载功能未开启"))
-            return
-
-        if self.random_searcher.is_max_page_finding:
-            await event.send(event.plain_result("正在获取所需数据中, 请稍后再试!"))
-            return
-
-        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
-        args = self.parse_command(cleaned_text)
-        tags = ''
-        if len(args) == 0:
-            await event.send(event.plain_result("正在搜索随机本子，请稍候..."))
-        elif len(args) == 1:
-            search_query = args[0]
-            tags = re.sub(r'[，,]+', ' ', search_query)
-            await event.send(event.plain_result(f"正在搜索关键词为 {tags} 随机本子，请稍候..."))
-        else:
-            await event.send(event.plain_result(f"使用方法不正确，请输入指令 /jm 获取使用说明"))
-            return
-
-        max_page = await self.random_searcher.get_max_page(query=tags)
-        if max_page == 0:
-            await event.send(
-                event.plain_result(f"未搜索到任何关键词为 {tags} 随机本子，建议更换为其他语言的相同关键词重新搜索..."))
-            return
-
-        random_page = random.randint(1, max_page)
+    async def random_comic(self, event: AstrMessageEvent, cleaned_text: str):
         try:
-            result = self.api_client.search_site(search_query=tags, page=random_page)
+            cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+            args = self.parse_command(cleaned_text)
+
+            tags = args[0] if args else ''
+
+            await event.send(event.plain_result(f"正在随机寻找漫画{' (关键词: ' + tags + ')' if tags else ''}..."))
+
+            from jmcomic import JmOption
+            option = JmOption.from_file(self.config['option_file'])
+            client = option.new_jm_client(impl='api')
+
+            # 获取最大页数
+            max_page = await self.get_max_page(client, query=tags)
+
+            if max_page == 0:
+                await event.send(event.plain_result("未搜索到相关本子，请更换关键词"))
+                return
+
+            random_page = random.randint(1, max_page)
+            result = client.search_site(search_query=tags, page=random_page)
             album_list = list(result.iter_id_title())
+
             if not album_list:
-                raise ValueError("未找到任何漫画")
+                await event.send(event.plain_result("未找到任何漫画"))
+                return
 
             random_index = random.randint(0, len(album_list) - 1)
-            selected_album_id = album_list[random_index][0]
-            selected_album_title = album_list[random_index][1]
+            selected_id = album_list[random_index][0]
+            selected_title = album_list[random_index][1]
 
-            await event.send(event.plain_result(f"你今天的幸运本子是：[{selected_album_id}]{selected_album_title}，即将开始下载，请稍候..."))
-            await jm_file_resolver.before_download(event, self.options, selected_album_id)
+            result_text = f"你今天的幸运本子是：[{selected_id}]{selected_title}"
+            await event.send(event.plain_result(result_text))
+
+            choice = await event.ask_response("是否下载这个本子？(y/n):", timeout=30)
+            if choice and choice.lower() == 'y':
+                await self.download_comic_by_id(event, selected_id)
+
         except Exception as e:
-            await event.send(event.plain_result(f"随机本子下载失败：{e}"))
+            logger.exception("随机漫画失败")
+            await event.send(event.plain_result(f"随机漫画失败：{str(e)}"))
+
+    @filter.command("看jm")
+    async def download_comic(self, event: AstrMessageEvent, cleaned_text: str):
+        try:
+            cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+            args = self.parse_command(cleaned_text)
+
+            if not args:
+                await self.jm_helper(event)
+                return
+
+            comic_id = args[0]
+
+            # 检查是否是序号
+            if comic_id.isdigit():
+                search_cache_folder = Path(self.config['search_cache_folder'])
+                cache_file = search_cache_folder / f"{event.get_sender_id()}.json"
+
+                if cache_file.exists():
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        cache_data = json.load(f)
+
+                    if comic_id in cache_data:
+                        comic_id = cache_data[comic_id]
+                        await event.send(event.plain_result(f"正在获取漫画 ID: {comic_id}"))
+                    else:
+                        # 如果不在缓存中，直接当作ID使用
+                        await event.send(event.plain_result(f"正在获取漫画 ID: {comic_id}"))
+                else:
+                    await event.send(event.plain_result(f"正在获取漫画 ID: {comic_id}"))
+
+            await self.download_comic_by_id(event, comic_id)
+
+        except Exception as e:
+            logger.exception("下载漫画失败")
+            await event.send(event.plain_result(f"下载漫画失败：{str(e)}"))
+
+    async def download_comic_by_id(self, event: AstrMessageEvent, comic_id: str):
+        """下载指定ID的漫画"""
+        try:
+            await event.send(event.plain_result(f"开始下载漫画 {comic_id}，请稍候..."))
+
+            pdf_files = download_and_get_pdf({
+                'option': self.config['option_file'],
+                'pdf_max_pages': self.config.get('pdf_max_pages', 200),
+                'batch_size': self.config.get('batch_size', 20)
+            }, comic_id)
+
+            if not pdf_files:
+                await event.send(event.plain_result("下载失败，未生成PDF文件"))
+                return
+
+            # 获取漫画名称
+            folder_path = os.path.dirname(pdf_files[0])
+            base_name = os.path.basename(pdf_files[0])
+            name = os.path.splitext(base_name)[0]
+
+            # 上传文件
+            await self.uploader.upload_file(
+                event,
+                folder_path,
+                name.split(' part')[0] if ' part' in name else name
+            )
+
+        except Exception as e:
+            logger.exception("下载处理失败")
+            await event.send(event.plain_result(f"下载处理失败：{str(e)}"))
+
+    @filter.command("更新jm域名")
+    async def update_domain(self, event: AstrMessageEvent, cleaned_text: str):
+        try:
+            await event.send(event.plain_result("正在检查可用域名..."))
+
+            domains = get_usable_domain(self.config['option_file'])
+            usable_domains = [domain for domain, status in domains if status == 'ok']
+
+            if not usable_domains:
+                await event.send(event.plain_result("未找到可用域名，请检查网络连接"))
+                return
+
+            update_option_domain(self.config['option_file'], usable_domains)
+            await event.send(event.plain_result(f"已添加可用域名: {', '.join(usable_domains)}"))
+
+        except Exception as e:
+            logger.exception("更新域名失败")
+            await event.send(event.plain_result(f"更新域名失败：{str(e)}"))
+
+    @filter.command("清空jm域名")
+    async def clear_domain_cmd(self, event: AstrMessageEvent, cleaned_text: str):
+        try:
+            clear_domain(self.config['option_file'])
+            await event.send(event.plain_result("已清空域名配置"))
+
+        except Exception as e:
+            logger.exception("清空域名失败")
+            await event.send(event.plain_result(f"清空域名失败：{str(e)}"))
 
     @filter.command("jm")
-    async def do_download(self, event: AstrMessageEvent):
-        if not self.verify_whitelist(event):
-            return
+    async def jm_helper(self, event: AstrMessageEvent):
+        help_text = """JMComic漫画下载器 指令帮助：
+[1] 搜索漫画: 搜漫画 [关键词] [页码（默认1）]
+[2] 随机推荐: 随机漫画 [关键词（可选）]
+[3] 下载漫画: 下载漫画 [ID/序号]
+[4] 更新域名: 更新域名
+[5] 清空域名: 清空域名
+[6] 重新加载配置: 重载漫画配置
+[7] 获取指令帮助: 漫画
 
-        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
-        args = self.parse_command(cleaned_text)
-        if len(args) == 0:
-            help_text = ("你是不是在找: \n"
-                        "1.搜索功能: \n"
-                        "格式: 查jm [关键词/标签] [页码(默认第一页)]\n"
-                        "例: 查jm 鸣潮,+无修正 2\n\n"
-                        "2.下载指定id的本子:\n"
-                        "格式:jm [jm号]\n"
-                        "例: jm 350234\n\n"
-                        "3.下载随机本子:\n"
-                        "格式:随机jm\n\n"
-                        "4.寻找可用下载域名:\n"
-                        "格式:jm更新域名\n\n"
-                        "5.清除默认域名:\n"
-                        "格式:jm清空域名")
-            await event.send(event.plain_result(help_text))
-            return
+搜索多关键词时请用以下符号连接`,` `，`，关键词之间不要添加任何空格
+使用"下载漫画 [序号]"前确保你最近至少使用过一次"搜漫画"命令（每个用户的缓存文件是独立的）"""
+        await event.send(event.plain_result(help_text))
 
-        await event.send(event.plain_result(f"即将开始下载{args[0]}, 请稍候..."))
-        await jm_file_resolver.before_download(event, self.options, args[0])
+    @filter.command("重载jm配置")
+    async def reload_config(self, event: AstrMessageEvent):
+        await event.send(event.plain_result("正在重载配置参数"))
+        self.config = load_config()
+        self.uploader = MessageAdapter(self.config)
+        await event.send(event.plain_result("已重载配置参数"))
 
-    @filter.command("查jm")
-    async def do_search(self, event: AstrMessageEvent):
-        if not self.verify_whitelist(event):
-            return
+    async def get_max_page(self, client, query=''):
+        """获取最大页数"""
+        if query in self._max_page_cache:
+            return self._max_page_cache[query]
 
-        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
-        args = self.parse_command(cleaned_text)
-        if len(args) == 0:
-            help_text = ("请指定搜索条件, 格式: 查jm [关键词/标签] [页码(默认第一页)]\n"
-                        "例: 查jm 鸣潮,+无修正 2\n"
-                        "使用提示: 请使用中英文任意逗号隔开每个关键词/标签，切勿使用空格进行分割")
-            await event.send(event.plain_result(help_text))
-            return
+        try:
+            result = client.search_site(search_query=query, page=1)
+            if not result:  # 至少有一个相关本子才能通过下方逻辑寻找总页数，否则直接返回 0
+                return 0
 
-        page = int(args[1]) if len(args) > 1 else 1
-        search_query = args[0]
-        tags = re.sub(r'[，,]+', ' ', search_query)
+            current_page = 2000 if query == '' else 10  # 2025/4/20 - 根据开发经验硬编码的起始页数，理论上能减少迭代次数
+            current_last_id = list(result.iter_id_title())[-1][0]
 
-        search_page = self.api_client.search_site(search_query=tags, page=page)
+            # 模糊查找总页数边界，防止真实页数大于 current_page，每次扩展在当前基础上乘 2
+            for _ in range(10):  # 假设 page <= 10 * 2^10 = 10240
+                try:
+                    current_result = client.search_site(search_query=query, page=current_page)
+                    current_next_result = client.search_site(search_query=query, page=current_page + 1)
+                    current_last_id = list(current_result.iter_id_title())[-1][0]
+                    current_next_last_id = list(current_next_result.iter_id_title())[-1][0]
+                    if current_last_id == current_next_last_id:
+                        break
+                    current_page *= 2
+                except Exception:
+                    return 0
 
-        # search_page默认的迭代方式是page.iter_id_title()，每次迭代返回 albun_id, title
-        results = []
-        for album_id, title in search_page:
-            results.append([album_id, title])
+            # 精确查找总页数，修改版二分迭代法
+            low, high = 1, current_page
+            while low + 1 < high:
+                mid = (low + high) // 2
+                try:
+                    mid_result = client.search_site(search_query=query, page=mid)
+                    mid_last_id = list(mid_result.iter_id_title())[-1][0]
+                    if mid_last_id != current_last_id:
+                        low = mid
+                    else:
+                        high = mid
+                except Exception:
+                    high = mid
 
-        search_result = f"当前为第{page}页\n\n"
-        i = 1
-        for itemArr in results:
-            search_result += f"{i}. [{itemArr[0]}]: {itemArr[1]}\n"
-            i += 1
+            self._max_page_cache[query] = low
+            return low
 
-        search_result += "\n对我说jm jm号进行下载吧~"
-        await event.send(event.plain_result(search_result))
-
-    @filter.event_message_type(EventMessageType.ALL)
-    async def auto_find_jm(self, event: AstrMessageEvent):
-        if not self.options.auto_find_jm:
-            return
-        
-        if not self.verify_whitelist(event):
-            return
-
-        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
-        
-        # 检查此消息是否已被其他命令处理过
-        if (cleaned_text.startswith('jm更新域名') or 
-            cleaned_text.startswith('jm清空域名') or 
-            cleaned_text.startswith('随机jm') or 
-            cleaned_text.startswith('jm') or 
-            cleaned_text.startswith('查jm')):
-            return
-            
-        numbers = re.findall(r'\d+', cleaned_text)
-        concatenated_numbers = ''.join(numbers)
-
-        if 6 <= len(concatenated_numbers) <= 7:
-            await event.send(event.plain_result(f"你提到了{concatenated_numbers}...对吧?"))
-            await jm_file_resolver.before_download(event, self.options, concatenated_numbers)
-            return True
-        
-        return False
-
-    def verify_whitelist(self, event: AstrMessageEvent) -> bool:
-        is_group = not event.is_private_chat()
-        target = event.get_group_id() if is_group else event.get_sender_id()
-        
-        if is_group:
-            whitelist = self.options.group_whitelist
-        else:
-            whitelist = self.options.person_whitelist
-
-        if whitelist is None or len(whitelist) == 0:
-            return True
-
-        res = target in whitelist
-        if not res:
-            print(f'该群或好友"{target}"不在白名单中, 停止访问')
-        return res
+        except Exception as e:
+            logger.error(f"获取最大页数错误: {e}")
+            return 0
 
     async def terminate(self):
+        """插件终止时的清理工作"""
         pass
