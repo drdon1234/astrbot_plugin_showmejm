@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @register("astrbot_plugin_jmcomic", "test-do_not_download", "适配 AstrBot 的 JMComic 漫画搜索下载器", "1.0")
 class JMComicBot(Star):
-    def __init__(self, context: Context, config: dict):
+    def __init__(self, context: Context):
         super().__init__(context)
         self.config = load_config(str(Path(__file__).parent / "config.yaml"))
         self.uploader = MessageAdapter(self.config)
