@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class JMComicBot(Star):
     def __init__(self, context: Context, config: dict):
         super().__init__(context)
-        self.config = load_config(config)
+        self.config = load_config(str(Path(__file__).parent / "config.yaml"))
         self.uploader = MessageAdapter(self.config)
         self._max_page_cache = {}
 
