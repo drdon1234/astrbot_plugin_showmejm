@@ -5,6 +5,7 @@ from .utils.domain_checker import get_usable_domain, update_option_domain, clear
 from .utils.jm_file_resolver import download_and_get_pdf
 from .utils.message_adapter import MessageAdapter
 from pathlib import Path
+from jmcomic import JmOption
 import os
 import re
 import asyncio
@@ -90,7 +91,6 @@ class JMComicBot(Star):
 
             await event.send(event.plain_result(f"正在随机寻找漫画{' (关键词: ' + tags + ')' if tags else ''}..."))
 
-            from jmcomic import JmOption
             option = JmOption.from_file(self.config['option_file'])
             client = option.new_jm_client(impl='api')
 
