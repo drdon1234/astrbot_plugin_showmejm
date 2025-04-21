@@ -1,9 +1,11 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
 from astrbot.core.star.filter.event_message_type import EventMessageType
+from astrbot.api.star import Context, Star, register
 import re
 import random
 import jmcomic
+import os
+from typing import List
 from .utils.domain_checker import get_usable_domain, update_option_domain, clear_domain
 from .utils.jm_options import JmOptions
 from .utils.jm_random_search import JmRandomSearch
@@ -11,9 +13,46 @@ from .utils.jm_file_resolver import before_download
 
 @register("astrbot_plugin_showmejm", "exneverbur", "适配 AstrBot 的jm下载插件", "2.4")
 class ShowMeJM(Star):
-    def __init__(self, context: Context, config: dict):
+    # 定义默认选项（类级别）
+    init_options = {
+        # 你使用的消息平台, 只能为'napcat', 'llonebot', 'lagrange'
+        "platform": 'napcat',
+        # 消息平台的域名,端口号和token
+        # 使用时需在napcat内配置http服务器 host和port对应好
+        'http_host': 'localhost',
+        'http_port': 2333,
+        # 若消息平台未配置token则留空 否则填写配置的token
+        'token': '',
+        # 打包成pdf时每批处理的图片数量 每批越小内存占用越小
+        'batch_size': 20,
+        # 每个pdf中最多有多少个图片 超过此数量时将会创建新的pdf文件 设置为0则不限制
+        'pdf_max_pages': 200,
+        # 上传到群文件的哪个目录?默认"/"是传到根目录 如果指定的目录不存在会自动创建文件夹
+        'group_folder': '/',
+        # 是否开启自动匹配消息中的jm号功能
+        'auto_find_jm': True,
+        # 如果成功找到本子是否停止触发其他插件
+        'prevent_default': True,
+        # 配置文件所在位置 - 将在__init__中更新为绝对路径
+        'option': 'config.yml',
+        # 是否在启动时获取本子总页数
+        'open_random_search': True,
+        # 白名单配置
+        'person_whitelist': None,
+        'group_whitelist': None,
+    }
+
+    def __init__(self, context: Context):
         super().__init__(context)
-        self.options = JmOptions.from_dict(config)
+        
+        # 获取当前文件(main.py)所在目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(current_dir, 'config.yml')
+        
+        # 更新配置路径为绝对路径
+        self.init_options['option'] = config_path
+        
+        self.options = JmOptions.from_dict(self.init_options)
         file_option = jmcomic.create_option_by_file(self.options.option)
         self.client = file_option.new_jm_client()
         self.api_client = file_option.new_jm_client(impl='api')
@@ -24,14 +63,14 @@ class ShowMeJM(Star):
             await self.random_searcher.get_max_page()
             
     @staticmethod
-    def parse_command(message: str) -> list:
-        parts = message.split(' ')  # 分割命令和参数
-        if len(parts) > 1:
-            return parts[1:]
-        return []
+    def parse_command(message: str) -> List[str]:
+        return [p for p in message.split(' ') if p][1:]
     
     @filter.command("jm更新域名")
-    async def update_domain(self, event: AstrMessageEvent, cleaned_text: str):
+    async def update_domain(self, event: AstrMessageEvent):
+        # 在函数内解析cleaned_text
+        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+        
         if not self.verify_whitelist(event):
             return
             
@@ -55,7 +94,10 @@ class ShowMeJM(Star):
         await event.send(event.plain_result("已将可用域名添加到配置文件中~\n PS:如遇网络原因下载失败, 对我说:'jm清空域名'指令可以将配置文件中的域名清除, 此时我将自动寻找可用域名哦"))
         
     @filter.command("jm清空域名")
-    async def clear_domain_cmd(self, event: AstrMessageEvent, cleaned_text: str):
+    async def clear_domain_cmd(self, event: AstrMessageEvent):
+        # 在函数内解析cleaned_text
+        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+        
         if not self.verify_whitelist(event):
             return
             
@@ -63,7 +105,10 @@ class ShowMeJM(Star):
         await event.send(event.plain_result("已将默认下载域名全部清空, 我将会自行寻找可用域名\n PS:对我说:'jm更新域名'指令可以查看当前可用域名并添加进配置文件中哦"))
         
     @filter.command("随机jm")
-    async def random_download(self, event: AstrMessageEvent, cleaned_text: str):
+    async def random_download(self, event: AstrMessageEvent):
+        # 在函数内解析cleaned_text
+        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+        
         if not self.verify_whitelist(event):
             return
             
@@ -113,7 +158,10 @@ class ShowMeJM(Star):
             await event.send(event.plain_result(f"随机本子下载失败：{e}"))
             
     @filter.command("jm")
-    async def download_manga(self, event: AstrMessageEvent, cleaned_text: str):
+    async def download_manga(self, event: AstrMessageEvent):
+        # 在函数内解析cleaned_text
+        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+        
         if not self.verify_whitelist(event):
             return
             
@@ -141,7 +189,10 @@ class ShowMeJM(Star):
         await before_download(event, self.options, args[0])
         
     @filter.command("查jm")
-    async def search_manga(self, event: AstrMessageEvent, cleaned_text: str):
+    async def search_manga(self, event: AstrMessageEvent):
+        # 在函数内解析cleaned_text
+        cleaned_text = re.sub(r'@\S+\s*', '', event.message_str).strip()
+        
         if not self.verify_whitelist(event):
             return
             
