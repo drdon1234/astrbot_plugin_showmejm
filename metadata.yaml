@@ -1,0 +1,6 @@
+name: astrbot_plugin_showmejm
+desc: 适配 AstrBot 的 JM本子 转 PDF 插件，搜漫画，下漫画，看随机漫画！
+help: 测试中
+version: v2.4
+author: exneverbur, drdon1234
+repo: https://github.com/drdon1234/astrbot_plugin_showmejm
