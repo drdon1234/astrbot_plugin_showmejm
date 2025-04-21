@@ -1,5 +1,6 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult, EventMessageType
+from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
+from astrbot.core.star.filter.event_message_type import EventMessageType
 import re
 import random
 import jmcomic
