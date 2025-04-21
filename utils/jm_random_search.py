@@ -40,28 +40,37 @@ class JmRandomSearch:
                     return cached_entry["max_page"]
                 print(f"查询 '{query}' 的缓存已过期，重新获取最大页数...")
             result = self.client.search_site(search_query=query, page=1)
-            if not result:
-                print("未搜索到相关本子，请尝试用其他语言的该关键词组搜索")
+            if not result:  # 至少有一个相关本子才能通过下方逻辑寻找总页数，否则直接返回 0
                 return 0
-            last_album_id = list(result.iter_id_title())[-1][0]
-            print(f"第 1 页最后一个本子的 ID 为：{last_album_id}")
-            low, high = 1, initial_page
-            while low < high:
+            current_page = 4000 if query == '' else 10  # 2025/4/20 - 根据开发经验硬编码的起始页数，理论上能减少迭代次数
+            current_last_id = list(result.iter_id_title())[-1][0]
+            # 模糊查找总页数边界，防止真实页数大于 current_page，每次扩展在当前基础上乘 2
+            for _ in range(10):  # 假设 page <= 10 * 2^10 = 10240
+                try:
+                    current_result = self.client.search_site(search_query=query, page=current_page)
+                    current_next_result = self.client.search_site(search_query=query, page=current_page + 1)
+                    current_last_id = list(current_result.iter_id_title())[-1][0]
+                    current_next_last_id = list(current_next_result.iter_id_title())[-1][0]
+                    if current_last_id == current_next_last_id:
+                        break
+                    current_page *= 2
+                except Exception:
+                    return 0
+            # 精确查找总页数，修改版二分迭代法
+            low, high = current_page // 2, current_page
+            while low + 1 < high:
                 mid = (low + high) // 2
-                result = self.client.search_site(search_query=query, page=mid)
-                if not result:
+                try:
+                    mid_result = self.client.search_site(search_query=query, page=mid)
+                    mid_last_id = list(mid_result.iter_id_title())[-1][0]
+                    if mid_last_id != current_last_id:
+                        low = mid
+                    else:
+                        high = mid
+                except Exception:
                     high = mid
-                    continue
-                current_last_album_id = list(result.iter_id_title())[-1][0]
-                print(f"第 {mid} 页最后一个本子的 ID 为：{current_last_album_id}")
-                if current_last_album_id == last_album_id:
-                    high = mid
-                else:
-                    low = mid + 1
-            max_page = low
-            print(f"关键词 '{query}' 的分页目录总页数为 {max_page}")
             cache_data[query] = {
-                "max_page": max_page,
+                "max_page": low,
                 "timestamp": datetime.now().isoformat(),
                 "reliable": True
             }
