@@ -17,7 +17,7 @@ class JmRandomSearch:
         self.cache_dir = os.path.join(os.path.dirname(__file__), "cache")
         self.cache_file = os.path.join(self.cache_dir, "jm_max_page.json")
 
-    async def get_max_page(self, query='', initial_page=6000):
+    async def get_max_page(self, query=''):
         print(f"正在获取搜索结果为 '{query}' 的分页目录总页数")
         self.is_max_page_finding = True
         try:
@@ -80,6 +80,6 @@ class JmRandomSearch:
                 print(f"最大页码已保存到 {self.cache_file}，查询 '{query}' 的值为: {max_page}")
             except Exception as e:
                 print(f"保存缓存文件时发生错误: {e}")
-            return max_page
+            return low
         finally:
             self.is_max_page_finding = False
